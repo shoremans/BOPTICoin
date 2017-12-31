@@ -1,151 +1,137 @@
-pragma solidity ^0.4.9;
+pragma solidity ^0.4.4;
 
-import "./Receiver_Interface.sol";
-import "./ERC223_Interface.sol";
-import "./StandardToken.sol";
-import "./Ownable.sol";
+contract Token {
 
+    /// @return total amount of tokens
+    function totalSupply() constant returns (uint256 supply) {}
 
- /**
- * ERC23 token by Dexaran
- * BOPTICoin by H-EQUITIES, contact@h-equities.com
- * https://github.com/Dexaran/ERC23-tokens
- */
- 
- 
- /* https://github.com/LykkeCity/EthereumApiDotNetCore/blob/master/src/ContractBuilder/contracts/token/SafeMath.sol */
-contract SafeMath {
-    uint256 constant public MAX_UINT256 =
-    0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    /// @param _owner The address from which the balance will be retrieved
+    /// @return The balance
+    function balanceOf(address _owner) constant returns (uint256 balance) {}
 
-    function safeAdd(uint256 x, uint256 y) constant internal returns (uint256 z) {
-        if (x > MAX_UINT256 - y) throw;
-        return x + y;
-    }
+    /// @notice send `_value` token to `_to` from `msg.sender`
+    /// @param _to The address of the recipient
+    /// @param _value The amount of token to be transferred
+    /// @return Whether the transfer was successful or not
+    function transfer(address _to, uint256 _value) returns (bool success) {}
 
-    function safeSub(uint256 x, uint256 y) constant internal returns (uint256 z) {
-        if (x < y) throw;
-        return x - y;
-    }
+    /// @notice send `_value` token to `_to` from `_from` on the condition it is approved by `_from`
+    /// @param _from The address of the sender
+    /// @param _to The address of the recipient
+    /// @param _value The amount of token to be transferred
+    /// @return Whether the transfer was successful or not
+    function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {}
 
-    function safeMul(uint256 x, uint256 y) constant internal returns (uint256 z) {
-        if (y == 0) return 0;
-        if (x > MAX_UINT256 / y) throw;
-        return x * y;
-    }
+    /// @notice `msg.sender` approves `_addr` to spend `_value` tokens
+    /// @param _spender The address of the account able to transfer the tokens
+    /// @param _value The amount of wei to be approved for transfer
+    /// @return Whether the approval was successful or not
+    function approve(address _spender, uint256 _value) returns (bool success) {}
+
+    /// @param _owner The address of the account owning tokens
+    /// @param _spender The address of the account able to transfer the tokens
+    /// @return Amount of remaining tokens allowed to spent
+    function allowance(address _owner, address _spender) constant returns (uint256 remaining) {}
+
+    event Transfer(address indexed _from, address indexed _to, uint256 _value);
+    event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+    
 }
- 
-contract BOPTICoin is ERC223, SafeMath, Ownable {
 
-  mapping(address => uint) balances;
-  
-  string public name="BOPTI+";
-  string public symbol="BOPTI";
-  uint8 public decimals=8;
-  uint256 public totalSupply=300000000*10**decimals;
-  
-  function BOPTICoin() {
-  	owner=msg.sender;
-  	balances[owner]=100000000*10**decimals;
-  	
-  }
-  
-  // Function to access name of token .
-  function name() constant returns (string _name) {
-      return name;
-  }
-  // Function to access symbol of token .
-  function symbol() constant returns (string _symbol) {
-      return symbol;
-  }
-  // Function to access decimals of token .
-  function decimals() constant returns (uint8 _decimals) {
-      return decimals;
-  }
-  // Function to access total supply of tokens .
-  function totalSupply() constant returns (uint256 _totalSupply) {
-      return totalSupply;
-  }
-  
-  
-  
-  
-  // Function that is called when a user or another contract wants to transfer funds .
-  function transfer(address _to, uint _value, bytes _data, string _custom_fallback) returns (bool success) {
-      
-    if(isContract(_to)) {
-        if (balanceOf(msg.sender) < _value) throw;
-        balances[msg.sender] = safeSub(balanceOf(msg.sender), _value);
-        balances[_to] = safeAdd(balanceOf(_to), _value);
-        ContractReceiver receiver = ContractReceiver(_to);
-        receiver.call.value(0)(bytes4(sha3(_custom_fallback)), msg.sender, _value, _data);
-        Transfer(msg.sender, _to, _value, _data);
+
+
+contract StandardToken is Token {
+
+    function transfer(address _to, uint256 _value) returns (bool success) {
+        //Default assumes totalSupply can't be over max (2^256 - 1).
+        //If your token leaves out totalSupply and can issue more tokens as time goes on, you need to check if it doesn't wrap.
+        //Replace the if with this one instead.
+        //if (balances[msg.sender] >= _value && balances[_to] + _value > balances[_to]) {
+        if (balances[msg.sender] >= _value && _value > 0) {
+            balances[msg.sender] -= _value;
+            balances[_to] += _value;
+            Transfer(msg.sender, _to, _value);
+            return true;
+        } else { return false; }
+    }
+
+    function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
+        //same as above. Replace this line with the following if you want to protect against wrapping uints.
+        //if (balances[_from] >= _value && allowed[_from][msg.sender] >= _value && balances[_to] + _value > balances[_to]) {
+        if (balances[_from] >= _value && allowed[_from][msg.sender] >= _value && _value > 0) {
+            balances[_to] += _value;
+            balances[_from] -= _value;
+            allowed[_from][msg.sender] -= _value;
+            Transfer(_from, _to, _value);
+            return true;
+        } else { return false; }
+    }
+
+    function balanceOf(address _owner) constant returns (uint256 balance) {
+        return balances[_owner];
+    }
+
+    function approve(address _spender, uint256 _value) returns (bool success) {
+        allowed[msg.sender][_spender] = _value;
+        Approval(msg.sender, _spender, _value);
         return true;
     }
-    else {
-        return transferToAddress(_to, _value, _data);
-    }
-}
-  
 
-  // Function that is called when a user or another contract wants to transfer funds .
-  function transfer(address _to, uint _value, bytes _data) returns (bool success) {
-      
-    if(isContract(_to)) {
-        return transferToContract(_to, _value, _data);
-    }
-    else {
-        return transferToAddress(_to, _value, _data);
-    }
-}
-  
-  // Standard function transfer similar to ERC20 transfer with no _data .
-  // Added due to backwards compatibility reasons .
-  function transfer(address _to, uint _value) returns (bool success) {
-      
-    //standard function transfer similar to ERC20 transfer with no _data
-    //added due to backwards compatibility reasons
-    bytes memory empty;
-    if(isContract(_to)) {
-        return transferToContract(_to, _value, empty);
-    }
-    else {
-        return transferToAddress(_to, _value, empty);
-    }
-}
-
-//assemble the given address bytecode. If bytecode exists then the _addr is a contract.
-  function isContract(address _addr) private returns (bool is_contract) {
-      uint length;
-      assembly {
-            //retrieve the size of the code on target address, this needs assembly
-            length := extcodesize(_addr)
-      }
-      return (length>0);
+    function allowance(address _owner, address _spender) constant returns (uint256 remaining) {
+      return allowed[_owner][_spender];
     }
 
-  //function that is called when transaction target is an address
-  function transferToAddress(address _to, uint _value, bytes _data) private returns (bool success) {
-    if (balanceOf(msg.sender) < _value) throw;
-    balances[msg.sender] = safeSub(balanceOf(msg.sender), _value);
-    balances[_to] = safeAdd(balanceOf(_to), _value);
-    Transfer(msg.sender, _to, _value, _data);
-    return true;
-  }
-  
-  //function that is called when transaction target is a contract
-  function transferToContract(address _to, uint _value, bytes _data) private returns (bool success) {
-    if (balanceOf(msg.sender) < _value) throw;
-    balances[msg.sender] = safeSub(balanceOf(msg.sender), _value);
-    balances[_to] = safeAdd(balanceOf(_to), _value);
-    ContractReceiver receiver = ContractReceiver(_to);
-    receiver.tokenFallback(msg.sender, _value, _data);
-    Transfer(msg.sender, _to, _value, _data);
-    return true;
+    mapping (address => uint256) balances;
+    mapping (address => mapping (address => uint256)) allowed;
+    uint256 public totalSupply;
 }
 
 
-  function balanceOf(address _owner) constant returns (uint balance) {
-    return balances[_owner];
-  }
+//name this contract whatever you'd like
+contract BOPTICoin is StandardToken {
+
+    function () {
+        //if ether is sent to this address, send it back.
+        throw;
+    }
+
+    /* Public variables of the token */
+
+    /*
+    NOTE:
+    The following variables are OPTIONAL vanities. One does not have to include them.
+    They allow one to customise the token contract & in no way influences the core functionality.
+    Some wallets/interfaces might not even bother to look at this information.
+    */
+    string public name;                   //fancy name: eg Simon Bucks
+    uint8 public decimals;                //How many decimals to show. ie. There could 1000 base units with 3 decimals. Meaning 0.980 SBX = 980 base units. It's like comparing 1 wei to 1 ether.
+    string public symbol;                 //An identifier: eg SBX
+    string public version = 'H1.0';       //human 0.1 standard. Just an arbitrary versioning scheme.
+
+//
+// CHANGE THESE VALUES FOR YOUR TOKEN
+//
+
+//make sure this function name matches the contract name above. So if you're token is called TutorialToken, make sure the //contract name above is also TutorialToken instead of ERC20Token
+
+    function BOPTICoin(
+        ) {
+        balances[msg.sender] = 66100000*10**8;               // Give the creator all initial tokens (100000 for example)
+        totalSupply = 66100000*10**8;                        // Update total supply (100000 for example)
+        name = "BOPTI+";                                  // Set the name for display purposes
+        decimals = 8;                            // Amount of decimals for display purposes
+        symbol = "BOPTI";                               // Set the symbol for display purposes
+    }
+
+    /* Approves and then calls the receiving contract */
+    function approveAndCall(address _spender, uint256 _value, bytes _extraData) returns (bool success) {
+        allowed[msg.sender][_spender] = _value;
+        Approval(msg.sender, _spender, _value);
+
+        //call the receiveApproval function on the contract you want to be notified. This crafts the function signature manually so one doesn't have to include a contract in here just for this.
+        //receiveApproval(address _from, uint256 _value, address _tokenContract, bytes _extraData)
+        //it is assumed that when does this that the call *should* succeed, otherwise one would use vanilla approve instead.
+        if(!_spender.call(bytes4(bytes32(sha3("receiveApproval(address,uint256,address,bytes)"))), msg.sender, _value, this, _extraData)) { throw; }
+        return true;
+    }
 }
